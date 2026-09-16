@@ -1,6 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.database import Base, engine
+from app.models import user
+
+Base.metadata.create_all(bind=engine)
+
 app = FastAPI(
     title="AI Code Review Assistant",
     description="Backend API for AI-powered source code analysis",
