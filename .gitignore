@@ -2,7 +2,8 @@
 backend/venv/
 backend/__pycache__/
 backend/.env
-backend/uploads/
+backend/uploads/*
+!backend/uploads/.gitkeep
 backend/reports/
 
 # Frontend

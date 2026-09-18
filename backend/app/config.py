@@ -5,6 +5,10 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60
+
+    ALLOWED_EXTENSIONS: str = ".py"
+    MAX_FILE_SIZE_MB: int = 2
+    UPLOAD_DIRECTORY: str = "uploads"
     
     model_config = SettingsConfigDict(  
         env_file=".env",             
