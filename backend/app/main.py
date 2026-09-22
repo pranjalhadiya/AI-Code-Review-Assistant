@@ -4,8 +4,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import Base, engine
 from app.models import user
 from app.models import project
+from app.models import review          
+from app.models import review_finding
 from app.routes import auth
 from app.routes import upload
+from app.routes import review as review_routes
 
 Base.metadata.create_all(bind=engine)
 
@@ -36,6 +39,7 @@ def create_database_tables():
 # Register the authentication routes.
 app.include_router(auth.router)
 app.include_router(upload.router)
+app.include_router(review_routes.router)
 
 
 # Root endpoint.
