@@ -18,7 +18,6 @@ router = APIRouter(
     tags=["Review"]
 )
 
-
 @router.post(
     "/{project_id}/analyze",
     response_model=ReviewResponse,
@@ -158,3 +157,28 @@ def analyze_project(
     db.refresh(new_review)
 
     return new_review
+
+@router.get(
+    "/{review_id}",             
+    response_model=ReviewResponse
+)
+def get_review(
+    review_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    review = db.query(Review).filter(Review.id == review_id).first()
+
+    if not review:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Review not found."
+        )
+
+    if review.project.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to access this review."
+        )
+
+    return review

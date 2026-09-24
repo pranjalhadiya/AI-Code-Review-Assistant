@@ -1,25 +1,16 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'  // NEW — for navigating to the results page after analysis.
 import { useAuth } from '../hooks/useAuth'
 import Sidebar from '../components/Sidebar'
 import FileUpload from '../components/FileUpload'
-import { analyzeProject } from '../services/reviewService' 
-
-function getFindingCategory(issueText) {
-if (issueText.startsWith('Security:')) {
-    return { label: 'SECURITY', badgeClass: 'bg-red-500/20 text-red-300' }
-  }
-  if (issueText.startsWith('High complexity:')) {
-    return { label: 'COMPLEXITY', badgeClass: 'bg-amber-500/20 text-amber-300' }
-  }
-  return { label: 'QUALITY', badgeClass: 'bg-cyan-500/20 text-cyan-300' }
-}
+import { analyzeProject } from '../services/reviewService'
 
 function CodeSubmission() {
   const { user, loading } = useAuth()
   const [uploadedProjects, setUploadedProjects] = useState([])
-  const [reviews, setReviews] = useState({})
- 
   const [analyzingId, setAnalyzingId] = useState(null)
+
+  const navigate = useNavigate()
 
   const handleUploadSuccess = (project) => {
     setUploadedProjects((prev) => [project, ...prev])
@@ -29,15 +20,16 @@ function CodeSubmission() {
     setAnalyzingId(projectId)
     try {
       const review = await analyzeProject(projectId)
-      setReviews((prev) => ({ ...prev, [projectId]: review }))
-   
+      navigate(`/review/${review.id}`)
+      
     } catch (err) {
       console.error('Analysis failed:', err)
-  
-      alert('Analysis failed. Check the console for details.')
+      const message = err.response?.data?.detail || 'Analysis failed. Please try again.'
+      alert(message)
      
     } finally {
       setAnalyzingId(null)
+      
     }
   }
 
@@ -66,71 +58,26 @@ function CodeSubmission() {
         {uploadedProjects.length > 0 && (
           <div>
             <h2 className="text-lg font-semibold text-slate-200 mb-3">Uploaded this session</h2>
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
               {uploadedProjects.map((project) => (
                 <div
                   key={project.id}
-                  className="bg-slate-900 border border-slate-800 rounded-lg p-4"
+                  className="bg-slate-900 border border-slate-800 rounded-lg p-4 flex justify-between items-center"
                 >
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <span className="text-slate-200 text-sm font-medium">{project.project_name}</span>
-                      <span className="text-slate-500 text-xs block mt-1">
-                        {new Date(project.created_at).toLocaleString()}
-                      </span>
-                    </div>
-
-                    <button
-                      onClick={() => handleAnalyzeClick(project.id)}
-                      disabled={analyzingId === project.id}
-                      className="bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-700 disabled:cursor-not-allowed text-slate-950 text-sm font-semibold rounded-lg px-4 py-2 transition-colors"
-                    >
-                      {analyzingId === project.id ? 'Analyzing...' : 'Analyze'}
-                    </button>
+                  <div>
+                    <span className="text-slate-200 text-sm font-medium">{project.project_name}</span>
+                    <span className="text-slate-500 text-xs block mt-1">
+                      {new Date(project.created_at).toLocaleString()}
+                    </span>
                   </div>
 
-                  {reviews[project.id] && (
-                    <div className="mt-4 pt-4 border-t border-slate-800">
-                      <p className="text-slate-300 text-sm mb-2">
-                        <span className="font-semibold text-cyan-400">
-                          Score: {reviews[project.id].review_score ?? 'N/A'}/100
-                        </span>
-                        {' — '}
-                        {reviews[project.id].summary}
-                      </p>
-
-                      {reviews[project.id].findings.length === 0 ? (
-                        <p className="text-slate-500 text-sm">No issues found. Clean code!</p>
-                      ) : (
-                        <ul className="flex flex-col gap-1 mt-2">
-                          {reviews[project.id].findings.map((finding) => {
-                            const category = getFindingCategory(finding.issue)
-
-                            return (
-                              <li
-                                key={finding.id}
-                                className="text-xs text-slate-400 bg-slate-800/50 rounded px-3 py-2 flex items-start gap-2"
-                              >
-                                <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold ${category.badgeClass}`}>
-                                  {category.label}
-                                </span>
-                                <span>
-                                  <span className="text-slate-300 font-medium">[{finding.severity}]</span>{' '}
-                                  {finding.issue} — {finding.explanation}
-                                  {finding.line_number && ` (line ${finding.line_number})`}
-                                  {finding.suggestion && (
-                                    <span className="block text-cyan-400/80 mt-1">
-                                      💡 {finding.suggestion}
-                                    </span>
-                                  )}
-                                </span>
-                              </li>
-                            )
-                          })}
-                        </ul>
-                      )}
-                    </div>
-                  )}
+                  <button
+                    onClick={() => handleAnalyzeClick(project.id)}
+                    disabled={analyzingId === project.id}
+                    className="bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-700 disabled:cursor-not-allowed text-slate-950 text-sm font-semibold rounded-lg px-4 py-2 transition-colors"
+                  >
+                    {analyzingId === project.id ? 'Analyzing...' : 'Analyze'}
+                  </button>
                 </div>
               ))}
             </div>
