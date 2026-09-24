@@ -29,6 +29,26 @@ class Review(Base):
         nullable=True  
     )
 
+    maintainability_index = Column(
+        Float,
+        nullable=True  
+    )
+
+    lines_of_code = Column(
+        Integer,
+        nullable=True  
+    )
+
+    function_count = Column(
+        Integer,
+        nullable=True
+    )
+
+    class_count = Column(
+        Integer,
+        nullable=True
+    )
+
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),

@@ -4,6 +4,16 @@ import Sidebar from '../components/Sidebar'
 import FileUpload from '../components/FileUpload'
 import { analyzeProject } from '../services/reviewService' 
 
+function getFindingCategory(issueText) {
+if (issueText.startsWith('Security:')) {
+    return { label: 'SECURITY', badgeClass: 'bg-red-500/20 text-red-300' }
+  }
+  if (issueText.startsWith('High complexity:')) {
+    return { label: 'COMPLEXITY', badgeClass: 'bg-amber-500/20 text-amber-300' }
+  }
+  return { label: 'QUALITY', badgeClass: 'bg-cyan-500/20 text-cyan-300' }
+}
+
 function CodeSubmission() {
   const { user, loading } = useAuth()
   const [uploadedProjects, setUploadedProjects] = useState([])
@@ -80,11 +90,10 @@ function CodeSubmission() {
                   </div>
 
                   {reviews[project.id] && (
-                   
                     <div className="mt-4 pt-4 border-t border-slate-800">
                       <p className="text-slate-300 text-sm mb-2">
                         <span className="font-semibold text-cyan-400">
-                          Score: {reviews[project.id].review_score}/100
+                          Score: {reviews[project.id].review_score ?? 'N/A'}/100
                         </span>
                         {' — '}
                         {reviews[project.id].summary}
@@ -94,17 +103,30 @@ function CodeSubmission() {
                         <p className="text-slate-500 text-sm">No issues found. Clean code!</p>
                       ) : (
                         <ul className="flex flex-col gap-1 mt-2">
-                          {reviews[project.id].findings.map((finding) => (
-                            <li
-                              key={finding.id}
-                              className="text-xs text-slate-400 bg-slate-800/50 rounded px-3 py-2"
-                            >
-                              <span className="text-slate-300 font-medium">[{finding.severity}]</span>{' '}
-                              {finding.issue} — {finding.explanation}
-                              {finding.line_number && ` (line ${finding.line_number})`}
-                             
-                            </li>
-                          ))}
+                          {reviews[project.id].findings.map((finding) => {
+                            const category = getFindingCategory(finding.issue)
+
+                            return (
+                              <li
+                                key={finding.id}
+                                className="text-xs text-slate-400 bg-slate-800/50 rounded px-3 py-2 flex items-start gap-2"
+                              >
+                                <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold ${category.badgeClass}`}>
+                                  {category.label}
+                                </span>
+                                <span>
+                                  <span className="text-slate-300 font-medium">[{finding.severity}]</span>{' '}
+                                  {finding.issue} — {finding.explanation}
+                                  {finding.line_number && ` (line ${finding.line_number})`}
+                                  {finding.suggestion && (
+                                    <span className="block text-cyan-400/80 mt-1">
+                                      💡 {finding.suggestion}
+                                    </span>
+                                  )}
+                                </span>
+                              </li>
+                            )
+                          })}
                         </ul>
                       )}
                     </div>
