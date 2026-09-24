@@ -21,6 +21,10 @@ class ReviewResponse(BaseModel):
     project_id: int
     review_score: float | None
     summary: str | None
+    maintainability_index: float | None   
+    lines_of_code: int | None              
+    function_count: int | None              
+    class_count: int | None  
     created_at: datetime
     findings: list[ReviewFindingResponse] = []
 

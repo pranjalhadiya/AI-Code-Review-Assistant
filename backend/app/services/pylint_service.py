@@ -85,3 +85,23 @@ def parse_pylint_findings(raw_findings: list[dict]) -> list[dict]:
         parsed.append(parsed_finding)
 
     return parsed
+
+SEVERITY_PENALTY = {
+    "High": 8,
+    "Medium": 4,
+    "Low": 1,
+}
+
+def compute_combined_score(pylint_base_score: float, bandit_findings: list[dict], radon_findings: list[dict]) -> float:
+
+    score = pylint_base_score
+
+    for finding in bandit_findings:
+        score -= SEVERITY_PENALTY.get(finding["severity"], 4)
+
+    for finding in radon_findings:
+        score -= SEVERITY_PENALTY.get(finding["severity"], 4)
+
+    clamped_score = max(0, min(score, 100))
+
+    return round(clamped_score, 1)
