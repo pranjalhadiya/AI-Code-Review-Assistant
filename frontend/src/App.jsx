@@ -5,6 +5,7 @@ import Login from './pages/Login'
 import Register from './pages/Register' 
 import Dashboard from './pages/Dashboard'
 import CodeSubmission from './pages/CodeSubmission' 
+import ReviewResults from './pages/ReviewResults'
 import ProtectedRoute from './components/ProtectedRoute' 
 
 function App() {
@@ -33,6 +34,14 @@ function App() {
           element={
             <ProtectedRoute>
               <CodeSubmission />
+            </ProtectedRoute>
+          }
+        />
+         <Route
+          path="/review/:reviewId"
+            element={
+            <ProtectedRoute>
+              <ReviewResults />
             </ProtectedRoute>
           }
         />

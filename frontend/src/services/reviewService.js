@@ -8,3 +8,8 @@ export const analyzeProject = async (projectId) => {
   return response.data
   
 }
+
+export const getReview = async (reviewId) => {
+  const response = await api.get(`/review/${reviewId}`)
+  return response.data
+}
