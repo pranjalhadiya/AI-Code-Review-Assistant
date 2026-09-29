@@ -143,6 +143,43 @@ function ReviewResults() {
               </p>
             </div>
           </div>
+          {review.ai_summary ? (
+          
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-8">
+              <div className="flex items-start justify-between gap-6">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-500/20 text-violet-300">
+                      AI
+                    </span>
+                    <h2 className="text-sm font-semibold text-slate-300">AI Assessment</h2>
+                  </div>
+                  <p className="text-slate-400 text-sm whitespace-pre-wrap break-words">{review.ai_summary}</p>
+              
+                  <p className="text-slate-600 text-xs mt-3">
+                    The headline score combines static analysis (70%) and the AI's score (30%). AI output can vary
+                    between runs and may contain mistakes, so treat it as advice.
+                  </p>
+                </div>
+
+                <div className="text-center shrink-0">
+                  <div className={`text-3xl font-bold ${getScoreColor(review.ai_score)}`}>
+                    {review.ai_score ?? 'N/A'}
+                  </div>
+                  <div className="text-slate-500 text-xs mt-1">AI score</div>
+                </div>
+              </div>
+            </div>
+          ) : review.summary?.includes('AI review unavailable') ? (
+            
+            <div className="border border-dashed border-slate-800 rounded-xl p-4 mb-8">
+              <p className="text-slate-500 text-sm">
+                AI review was not available for this analysis. The scores and findings below come from static
+                analysis only. The reason is given in the summary above.
+              </p>
+            </div>
+          ) : null}
+       
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-8">
           <h2 className="text-sm font-semibold text-slate-300 mb-4">Findings by Severity</h2>
           <div style={{ height: '200px' }}>
@@ -228,6 +265,13 @@ function ReviewResults() {
                 active={categoryFilter === 'complexity'}
                 onClick={() => setCategoryFilter('complexity')}
               />
+
+              <FilterButton
+                label="AI"
+                active={categoryFilter === 'ai'}
+                onClick={() => setCategoryFilter('ai')}
+              />
+
             </div>
           </div>
 
@@ -242,6 +286,9 @@ function ReviewResults() {
             <ul className="flex flex-col gap-2">
               {filteredFindings.map((finding) => {
                 const category = getFindingCategory(finding.issue)
+                const displayIssue = category.key === 'ai' ? finding.issue.replace(/^AI /, '') : finding.issue
+   
+
                 return (
                   <li
                     key={finding.id}
@@ -250,12 +297,14 @@ function ReviewResults() {
                     <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold ${category.badgeClass}`}>
                       {category.label}
                     </span>
-                    <span>
+                    <span className="min-w-0 break-words">
+                      
                       <span className="text-slate-300 font-medium">[{finding.severity}]</span>{' '}
-                      {finding.issue} — {finding.explanation}
+                      {displayIssue} — {finding.explanation}
                       {finding.line_number && ` (line ${finding.line_number})`}
                       {finding.suggestion && (
-                        <span className="block text-cyan-400/80 mt-1">💡 {finding.suggestion}</span>
+                        <span className="block text-cyan-400/80 mt-1 whitespace-pre-wrap">💡 {finding.suggestion}</span>
+                      
                       )}
                     </span>
                   </li>
@@ -323,7 +372,11 @@ function FilterButton({ label, active, onClick }) {
 }
 
 function getFindingCategory(issueText) {
- 
+  if (issueText.startsWith('AI ')) {
+    
+    return { key: 'ai', label: 'AI', badgeClass: 'bg-violet-500/20 text-violet-300' }
+   
+  }
   if (issueText.startsWith('Security:')) {
     return { key: 'security', label: 'SECURITY', badgeClass: 'bg-red-500/20 text-red-300' }
   }
@@ -331,7 +384,6 @@ function getFindingCategory(issueText) {
     return { key: 'complexity', label: 'COMPLEXITY', badgeClass: 'bg-amber-500/20 text-amber-300' }
   }
   return { key: 'quality', label: 'QUALITY', badgeClass: 'bg-cyan-500/20 text-cyan-300' }
-
 }
 
 export default ReviewResults

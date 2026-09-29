@@ -10,8 +10,9 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE_MB: int = 2
     UPLOAD_DIRECTORY: str = "uploads"
 
-    GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-3.8-flash"
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "openai/gpt-oss-120b"
+    AI_TIMEOUT_SECONDS: int = 60  
     
     model_config = SettingsConfigDict(  
         env_file=".env",             
