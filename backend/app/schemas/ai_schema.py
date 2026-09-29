@@ -1,11 +1,12 @@
 from typing import Literal  
 
-from pydantic import BaseModel, Field  
+from pydantic import BaseModel, Field,  ConfigDict 
 
 
 class AIFinding(BaseModel):
   
-
+    model_config = ConfigDict(extra="forbid")
+    
     category: Literal[
         "bug", "security", "code_smell", "performance",
         "best_practice", "refactoring", "naming",
@@ -31,6 +32,7 @@ class AIFinding(BaseModel):
 
 class AIReview(BaseModel):
     
+    model_config = ConfigDict(extra="forbid")
 
     quality_score: int = Field(description="Overall code quality from 0 (very poor) to 100 (excellent).")
    
