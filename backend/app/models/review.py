@@ -49,6 +49,16 @@ class Review(Base):
         nullable=True
     )
 
+    ai_score = Column(
+        Float,
+        nullable=True  
+    )
+
+    ai_summary = Column(
+        String(2000),
+        nullable=True 
+    )
+
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),

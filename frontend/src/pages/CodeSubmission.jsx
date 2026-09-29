@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'  // NEW — for navigating to the results page after analysis.
+import { useState, useEffect } from 'react' 
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import Sidebar from '../components/Sidebar'
 import FileUpload from '../components/FileUpload'
@@ -8,9 +8,26 @@ import { analyzeProject } from '../services/reviewService'
 function CodeSubmission() {
   const { user, loading } = useAuth()
   const [uploadedProjects, setUploadedProjects] = useState([])
-  const [analyzingId, setAnalyzingId] = useState(null)
+  const [analyzingId, setAnalyzingId] = useState(null) 
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)  
 
   const navigate = useNavigate()
+
+  useEffect(() => {
+   
+    if (analyzingId === null) return 
+
+    setElapsedSeconds(0)  
+
+    const timer = setInterval(() => {
+      setElapsedSeconds((seconds) => seconds + 1)
+      
+    }, 1000)
+
+    return () => clearInterval(timer)
+   
+  }, [analyzingId])
+  
 
   const handleUploadSuccess = (project) => {
     setUploadedProjects((prev) => [project, ...prev])
@@ -21,15 +38,12 @@ function CodeSubmission() {
     try {
       const review = await analyzeProject(projectId)
       navigate(`/review/${review.id}`)
-      
     } catch (err) {
       console.error('Analysis failed:', err)
       const message = err.response?.data?.detail || 'Analysis failed. Please try again.'
       alert(message)
-     
     } finally {
       setAnalyzingId(null)
-      
     }
   }
 
@@ -62,22 +76,33 @@ function CodeSubmission() {
               {uploadedProjects.map((project) => (
                 <div
                   key={project.id}
-                  className="bg-slate-900 border border-slate-800 rounded-lg p-4 flex justify-between items-center"
+                  className="bg-slate-900 border border-slate-800 rounded-lg p-4"
                 >
-                  <div>
-                    <span className="text-slate-200 text-sm font-medium">{project.project_name}</span>
-                    <span className="text-slate-500 text-xs block mt-1">
-                      {new Date(project.created_at).toLocaleString()}
-                    </span>
+                  
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="text-slate-200 text-sm font-medium">{project.project_name}</span>
+                      <span className="text-slate-500 text-xs block mt-1">
+                        {new Date(project.created_at).toLocaleString()}
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() => handleAnalyzeClick(project.id)}
+                      disabled={analyzingId !== null}
+                      
+                      className="bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-700 disabled:cursor-not-allowed text-slate-950 text-sm font-semibold rounded-lg px-4 py-2 transition-colors"
+                    >
+                      {analyzingId === project.id ? `Analyzing... ${elapsedSeconds}s` : 'Analyze'}
+                   
+                    </button>
                   </div>
 
-                  <button
-                    onClick={() => handleAnalyzeClick(project.id)}
-                    disabled={analyzingId === project.id}
-                    className="bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-700 disabled:cursor-not-allowed text-slate-950 text-sm font-semibold rounded-lg px-4 py-2 transition-colors"
-                  >
-                    {analyzingId === project.id ? 'Analyzing...' : 'Analyze'}
-                  </button>
+                  {analyzingId === project.id && (
+                    <p className="text-slate-500 text-xs mt-3">
+                      Running static analysis and AI review. This can take up to a minute. Please keep this page open.
+                    </p>
+                  )}
                 </div>
               ))}
             </div>

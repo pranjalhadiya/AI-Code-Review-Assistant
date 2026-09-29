@@ -25,6 +25,8 @@ class ReviewResponse(BaseModel):
     lines_of_code: int | None              
     function_count: int | None              
     class_count: int | None  
+    ai_score: float | None     
+    ai_summary: str | None      
     created_at: datetime
     findings: list[ReviewFindingResponse] = []
 
