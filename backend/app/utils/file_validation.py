@@ -1,3 +1,4 @@
+import os
 from werkzeug.utils import secure_filename  
 
 from app.config import settings
@@ -27,7 +28,8 @@ def get_safe_filename(filename: str) -> str:
 
     if not safe_name:
         
-        safe_name = "unnamed_file.py"
+        _, original_extension = os.path.splitext(filename)
+        safe_name = f"unnamed_file{original_extension}" if original_extension else "unnamed_file"
 
     return safe_name
 

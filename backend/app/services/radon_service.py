@@ -49,6 +49,7 @@ def parse_radon_findings(radon_output: dict, file_name: str) -> list[dict]:
                 "suggestion": "Consider breaking this function into smaller, more focused functions.",
                 "file_name": file_name,
                 "line_number": item.lineno,
+                "category": "complexity",
             }
             parsed.append(parsed_finding)
 

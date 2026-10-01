@@ -89,7 +89,7 @@ function FileUpload({ onUploadSuccess }) {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".py"
+          accept=".py,.c,.java"
          
           onChange={handleFileInputChange}
           className="hidden"
@@ -103,8 +103,8 @@ function FileUpload({ onUploadSuccess }) {
           </div>
         ) : (
           <div>
-            <p className="text-slate-300">Drag and drop a Python file here</p>
-            <p className="text-slate-500 text-sm mt-1">or click to browse — .py files only, max 2MB</p>
+            <p className="text-slate-300">Drag and drop a Python, C, or Java file here</p>
+            <p className="text-slate-500 text-sm mt-1">or click to browse — .py, .c, or .java files only, max 2MB</p>
           </div>
         )}
       </div>

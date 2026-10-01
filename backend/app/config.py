@@ -6,13 +6,16 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60
 
-    ALLOWED_EXTENSIONS: str = ".py"
+    ALLOWED_EXTENSIONS: str = ".py,.c,.java"
     MAX_FILE_SIZE_MB: int = 2
     UPLOAD_DIRECTORY: str = "uploads"
 
     GROQ_API_KEY: str = ""
     GROQ_MODEL: str = "openai/gpt-oss-120b"
-    AI_TIMEOUT_SECONDS: int = 60  
+    AI_TIMEOUT_SECONDS: int = 60 
+
+    CPPCHECK_TIMEOUT_SECONDS: int = 30 
+    PMD_TIMEOUT_SECONDS: int = 30
     
     model_config = SettingsConfigDict(  
         env_file=".env",             

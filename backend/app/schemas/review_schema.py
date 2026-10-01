@@ -11,9 +11,12 @@ class ReviewFindingResponse(BaseModel):
     suggestion: str | None
     file_name: str
     line_number: int | None
+    category: str | None
+    source: str | None
+    technical_details: str | None
 
     model_config = ConfigDict(from_attributes=True)
-
+   
 
 class ReviewResponse(BaseModel):
    

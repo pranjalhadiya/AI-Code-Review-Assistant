@@ -68,6 +68,8 @@ def parse_pylint_findings(raw_findings: list[dict]) -> list[dict]:
        
 
         issue_title = symbol.replace("-", " ").capitalize()
+        
+        category = "naming" if "name" in symbol else "quality"
       
 
         parsed_finding = {
@@ -79,6 +81,7 @@ def parse_pylint_findings(raw_findings: list[dict]) -> list[dict]:
           
             "file_name": finding.get("path", "unknown_file"),
             "line_number": finding.get("line"),
+            "category": category,
          
         }
 
@@ -105,3 +108,13 @@ def compute_combined_score(pylint_base_score: float, bandit_findings: list[dict]
     clamped_score = max(0, min(score, 100))
 
     return round(clamped_score, 1)
+
+def compute_static_score_from_findings(base_score: float, *finding_lists: list[dict]) -> float:
+   
+    score = base_score
+
+    for findings in finding_lists:
+        for finding in findings:
+            score -= SEVERITY_PENALTY.get(finding["severity"], 4)
+            
+    return round(max(0.0, min(score, 100.0)), 1)
