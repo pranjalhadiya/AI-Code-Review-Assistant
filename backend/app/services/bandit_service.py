@@ -60,6 +60,7 @@ def parse_bandit_findings(raw_findings: list[dict]) -> list[dict]:
 
             "file_name": finding["file_name"],
             "line_number": finding["line_number"],
+            "category": "security",
         }
 
         parsed.append(parsed_finding)

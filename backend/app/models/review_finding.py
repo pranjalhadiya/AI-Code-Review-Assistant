@@ -48,6 +48,21 @@ class ReviewFinding(Base):
         nullable=True  
     )
 
+    category = Column(
+        String(50),
+        nullable=True 
+    )
+
+    source = Column(
+        String(20),
+        nullable=True  
+    )
+
+    technical_details = Column(
+        String(500),
+        nullable=True  
+    )    
+
     review = relationship("Review", back_populates="findings")
    
 
