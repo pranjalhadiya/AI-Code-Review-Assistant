@@ -204,7 +204,33 @@ function ReviewResults() {
   }
   const presentCategories = CATEGORY_ORDER.filter((key) => categoryCounts[key] > 0)
   const totalCategoryCount = presentCategories.reduce((sum, key) => sum + categoryCounts[key], 0)
+  const severityInsight = getSeverityInsight(severityCounts)  
+  const categoryInsight = getCategoryInsight(categoryCounts, presentCategories)  
+  const toolCounts = {}
+  for (const finding of review.findings) {
+    for (const tool of getContributingTools(finding)) {
+      toolCounts[tool] = (toolCounts[tool] || 0) + 1
+    }
+  }
+  const summaryText = review.summary || ''
+  const isPythonReview = summaryText.includes('code quality') || toolCounts['Pylint'] > 0
+  const staticToolFallbackName =
+    Object.keys(toolCounts).find((name) => name !== 'AI') || 'Static Analyzer (language-specific)'
+  const staticToolRows = isPythonReview
+    ? [
+        { name: 'Pylint', count: toolCounts['Pylint'] || 0, ok: sourceSucceeded(summaryText, 'code quality scan failed') },
+        { name: 'Bandit', count: toolCounts['Bandit'] || 0, ok: sourceSucceeded(summaryText, 'security scan failed') },
+        { name: 'Radon', count: toolCounts['Radon'] || 0, ok: sourceSucceeded(summaryText, 'complexity scan failed') },
+      ]
+    : [
+        { name: staticToolFallbackName, count: toolCounts[staticToolFallbackName] || 0, ok: sourceSucceeded(summaryText, 'static analysis scan failed') },
+      ]
 
+  const aiRow = {
+    count: toolCounts['AI'] || 0,
+    ok: review.ai_summary !== null,
+    score: review.ai_score,
+  }   
   const categoryChartData = {
     labels: presentCategories.map((key) => CATEGORY_META[key].label),
     datasets: [{
@@ -240,6 +266,10 @@ function ReviewResults() {
     const matchesCategory = categoryFilter === 'all' || getCategoryMeta(finding).key === categoryFilter
     return matchesSeverity && matchesCategory
   })
+
+  const categoriesInData = CATEGORY_ORDER.filter((key) =>
+  review.findings.some((finding) => getCategoryMeta(finding).key === key)
+  )
 
   return (
     <div className="min-h-screen bg-slate-950 flex">
@@ -307,14 +337,22 @@ function ReviewResults() {
           <>
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-8">
               <h2 className="text-sm font-semibold text-slate-300">Findings by Severity</h2>
-              <p className="text-slate-500 text-xs mt-1 mb-4">How many issues were found at each severity level.</p>
+              <p className="text-slate-500 text-xs mt-1 mb-1">How many issues were found at each severity level.</p>
+              {severityInsight && (
+                <p className={`text-xs mb-3 font-medium ${severityInsight.warn ? 'text-red-400' : 'text-slate-500'}`}>
+                  {severityInsight.text}
+                </p>
+              )}
               <div style={{ height: '200px' }}><Bar data={severityChartData} options={severityChartOptions} /></div>
             </div>
 
             {presentCategories.length > 1 && (
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-8">
                 <h2 className="text-sm font-semibold text-slate-300">Findings by Type</h2>
-                <p className="text-slate-500 text-xs mt-1 mb-4">What kinds of problems were detected.</p>
+                <p className="text-slate-500 text-xs mt-1 mb-1">What kinds of problems were detected.</p>
+                {categoryInsight && (
+                  <p className="text-xs mb-3 font-medium text-slate-500">{categoryInsight}</p>
+                )}
                 <div style={{ height: '200px' }}><Bar data={categoryChartData} options={categoryChartOptions} /></div>
               </div>
             )}
@@ -331,7 +369,41 @@ function ReviewResults() {
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+        <details className="bg-slate-900 border border-slate-800 rounded-xl p-6 mt-8">
+          <summary className="text-sm font-semibold text-slate-300 cursor-pointer select-none">
+            Advanced Analysis Details
+          </summary>
+
+          <div className="mt-4 space-y-4">
+            <div>
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Static Analysis</h3>
+              <div className="flex flex-col gap-1.5">
+                {staticToolRows.map((row) => (
+                  <div key={row.name} className="flex items-center justify-between text-sm">
+                    <span className="text-slate-300">{row.name}</span>
+                    <span className={row.ok ? 'text-slate-500' : 'text-red-400'}>
+                      {row.ok ? `${row.count} finding${row.count === 1 ? '' : 's'}` : 'Scan failed'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-800">
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">AI Analysis</h3>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-300">AI Review</span>
+                <span className={aiRow.ok ? 'text-slate-500' : 'text-red-400'}>
+                  {aiRow.ok
+                    ? `${aiRow.count} finding${aiRow.count === 1 ? '' : 's'}${aiRow.score !== null ? ` · Score: ${aiRow.score}/100` : ''}`
+                    : 'Unavailable'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mt-8">
           <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
             <h2 className="text-sm font-semibold text-slate-300">Findings ({filteredFindings.length} of {review.findings.length})</h2>
             <div className="flex flex-wrap gap-2">
@@ -341,7 +413,7 @@ function ReviewResults() {
               <FilterButton label="Low" active={severityFilter === 'Low'} onClick={() => setSeverityFilter('Low')} />
               <span className="text-slate-700">|</span>
               <FilterButton label="All Types" active={categoryFilter === 'all'} onClick={() => setCategoryFilter('all')} />
-              {CATEGORY_ORDER.map((key) => (
+              {categoriesInData.map((key) => (
                 <FilterButton key={key} label={CATEGORY_META[key].label} active={categoryFilter === key} onClick={() => setCategoryFilter(key)} />
               ))}
             </div>
@@ -438,6 +510,42 @@ function getMaintainabilityColor(mi) {
   if (mi >= 20) return 'text-emerald-400'
   if (mi >= 10) return 'text-amber-400'
   return 'text-red-400'
+}
+function getSeverityInsight(counts) {
+  if (counts.High > 0) {
+    return { text: `${counts.High} high-severity issue${counts.High > 1 ? 's' : ''} — review ${counts.High > 1 ? 'these' : 'this'} first.`, warn: true }
+  }
+  if (counts.Medium > 0) {
+    return { text: `No high-severity issues. ${counts.Medium} medium-severity issue${counts.Medium > 1 ? 's' : ''} worth reviewing.`, warn: false }
+  }
+  if (counts.Low > 0) {
+    return { text: 'Only low-severity issues — nothing urgent.', warn: false }
+  }
+  return null
+}
+function getCategoryInsight(categoryCounts, presentCategories) {
+  if (presentCategories.length === 0) return null
+  const topKey = presentCategories.reduce((a, b) => (categoryCounts[b] > categoryCounts[a] ? b : a))
+  if (categoryCounts[topKey] === 0) return null
+  const topLabel = CATEGORY_META[topKey].label
+  const topCount = categoryCounts[topKey]
+  if (topKey === 'security') {
+    return `Security has the most findings (${topCount}) — worth addressing first.`
+  }
+  return `Most findings are ${topLabel} (${topCount}).`
+}
+function getContributingTools(finding) {
+  const source = finding.source || (finding.issue.startsWith('AI ') ? 'ai' : 'static')
+
+  if (source === 'ai') return ['AI']
+
+  if (source === 'static+ai') {
+    const firstLine = finding.technical_details?.split('\n')[0] || ''
+    const toolName = firstLine.split(':')[0].trim() || 'Static Analyzer'
+    return [toolName, 'AI']
+  }
+
+  return [getToolLabel(finding)] 
 }
 function StatCard({ label, value, valueColor }) {
   return (

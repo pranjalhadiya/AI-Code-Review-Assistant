@@ -15,7 +15,7 @@ function Sidebar({ userName }) {
     <aside className="w-64 min-h-screen bg-slate-900 border-r border-slate-800 flex flex-col p-4">
       
       <div className="mb-8">
-        <h2 className="text-lg font-bold text-cyan-400">Code Review AI</h2>
+        <h2 className="text-lg font-bold text-cyan-400">Code Review Studio</h2>
        
         <p className="text-xs text-slate-500 mt-1">Welcome, {userName}</p>
       
