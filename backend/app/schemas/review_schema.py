@@ -43,3 +43,6 @@ class SourceCodeResponse(BaseModel):
     source_code: str
 
     model_config = ConfigDict(from_attributes=True)
+
+class ReanalyzeRequest(BaseModel):
+    source_code: str
