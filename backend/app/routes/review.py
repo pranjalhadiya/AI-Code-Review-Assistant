@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -6,7 +7,9 @@ from app.models.user import User
 from app.models.project import Project
 from app.models.review import Review
 from app.models.review_finding import ReviewFinding
-from app.schemas.review_schema import ReviewResponse, SourceCodeResponse 
+from app.schemas.review_schema import ReviewResponse, SourceCodeResponse, ReanalyzeRequest
+from app.utils.file_validation import validate_upload        
+from app.utils.file_storage import overwrite_stored_file  
 from app.services.auth_service import get_current_user
 from app.services.pylint_service import (
     run_pylint,
@@ -321,3 +324,103 @@ def get_review_source(
         language=language or "python",  
         source_code=source_code,
     )
+
+def _delete_project_reviews_except(db: Session, project_id: int, keep_ids: set[int]) -> None:
+    """
+    Deletes every Review of this project whose id is NOT in keep_ids. Uses the ORM (db.delete),
+    not a bulk delete, so each review's findings cascade-delete too (Review.findings has
+    cascade="all, delete-orphan"). A bulk delete would skip the cascade and hit the foreign key.
+    """
+    stale_reviews = db.query(Review).filter(
+        Review.project_id == project_id,
+        Review.id.notin_(list(keep_ids)),
+    ).all()
+    for stale in stale_reviews:
+        db.delete(stale)
+    db.commit()
+
+
+def _rollback_reanalysis(db: Session, project_id: int, file_path: str,
+                         original_bytes: bytes, ids_before: set[int]) -> None:
+    """
+    Puts everything back the way it was before a failed re-analysis. Each step is wrapped
+    separately, so a failure while cleaning up can't hide the original error.
+    """
+    db.rollback()  # Discard anything pending in this session first.
+
+    try:
+        overwrite_stored_file(file_path, original_bytes)  # Restore the user's original code.
+    except Exception as e:
+        print(f"Could not restore original file {file_path}: {e}")
+
+    try:
+        _delete_project_reviews_except(db, project_id, ids_before)  # Remove any review this attempt created.
+    except Exception as e:
+        db.rollback()
+        print(f"Could not clean up reviews after failed re-analysis of project {project_id}: {e}")
+
+
+@router.post(
+    "/{review_id}/reanalyze",
+    response_model=ReviewResponse,
+    status_code=status.HTTP_201_CREATED
+)
+def reanalyze_review(
+    review_id: int,
+    payload: ReanalyzeRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Replace-in-place re-analysis: overwrites the project's stored file with the edited code,
+    runs the normal analysis pipeline, and keeps ONLY the new review. On any failure the
+    original file and review are restored. No version history is kept.
+    """
+    old_review = db.query(Review).filter(Review.id == review_id).first()
+
+    if not old_review:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found.")
+
+    if old_review.project.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to access this review."
+        )
+
+    project_id = old_review.project.id
+    file_path = old_review.project.file_path
+
+    if not payload.source_code.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No code was provided.")
+
+    new_bytes = payload.source_code.encode("utf-8")
+
+    is_valid, message = validate_upload(os.path.basename(file_path), len(new_bytes))
+    if not is_valid:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=message)
+
+    try:
+        with open(file_path, "rb") as f:
+            original_bytes = f.read() 
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="The source file for this review could no longer be found on the server."
+        )
+
+    ids_before = {row.id for row in db.query(Review.id).filter(Review.project_id == project_id).all()}
+  
+
+    overwrite_stored_file(file_path, new_bytes)
+   
+
+    try:
+        new_review = analyze_project(project_id=project_id, current_user=current_user, db=db)
+        
+        _delete_project_reviews_except(db, project_id, {new_review.id})
+        db.refresh(new_review) 
+    except Exception:
+        _rollback_reanalysis(db, project_id, file_path, original_bytes, ids_before)
+        raise  
+
+    return new_review
