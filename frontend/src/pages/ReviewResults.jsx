@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import Sidebar from '../components/Sidebar'
-import { getReview } from '../services/reviewService'
+import { getReview, getReviewSource } from '../services/reviewService'
+import CodeViewer from '../components/CodeViewer'  
 import { Bar } from 'react-chartjs-2'
-
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -120,6 +120,14 @@ function ReviewResults() {
   const [reviewLoading, setReviewLoading] = useState(true)
   const [error, setError] = useState('')
 
+  const [sourceCode, setSourceCode] = useState(null)
+  const [sourceLanguage, setSourceLanguage] = useState(null)
+  const [sourceLoading, setSourceLoading] = useState(true)
+  const [sourceError, setSourceError] = useState('')
+  const [jumpTarget, setJumpTarget] = useState(null)      
+  const [flashedFindingIds, setFlashedFindingIds] = useState([]) 
+
+
   const [severityFilter, setSeverityFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
 
@@ -137,6 +145,21 @@ function ReviewResults() {
     }
     fetchReview()
   }, [reviewId])
+
+  useEffect(() => {
+    const fetchSource = async () => {
+      try {
+        const data = await getReviewSource(reviewId)
+        setSourceCode(data.source_code)
+        setSourceLanguage(data.language)
+      } catch (err) {
+        setSourceError(err.response?.data?.detail || 'Could not load source code.')
+      } finally {
+        setSourceLoading(false)
+      }
+    }
+    fetchSource()
+  }, [reviewId]) 
 
   if (authLoading || reviewLoading) {
     return (
@@ -206,6 +229,7 @@ function ReviewResults() {
   const totalCategoryCount = presentCategories.reduce((sum, key) => sum + categoryCounts[key], 0)
   const severityInsight = getSeverityInsight(severityCounts)  
   const categoryInsight = getCategoryInsight(categoryCounts, presentCategories)  
+  const lineMarkers = buildLineMarkers(review.findings)
   const toolCounts = {}
   for (const finding of review.findings) {
     for (const tool of getContributingTools(finding)) {
@@ -271,6 +295,19 @@ function ReviewResults() {
   review.findings.some((finding) => getCategoryMeta(finding).key === key)
   )
 
+  const handleViewCode = (lineNumber) => {
+    setJumpTarget({ line: lineNumber })
+  }
+
+  const handleEditorLineClick = (lineNumber) => {
+    const marker = lineMarkers.find((m) => m.line === lineNumber)
+    if (!marker) return
+    setFlashedFindingIds(marker.findingIds)
+    const el = document.getElementById(`finding-${marker.findingIds[0]}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setTimeout(() => setFlashedFindingIds([]), 2000)
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 flex">
       <Sidebar userName={user?.name} />
@@ -327,6 +364,23 @@ function ReviewResults() {
               <p className="text-slate-500 text-sm">AI review was not available for this analysis. Results below come from static analysis only.</p>
             </div>
           ) : null}
+        </div>
+
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-8">
+          <h2 className="text-sm font-semibold text-slate-300 mb-4">Source Code</h2>
+          {sourceLoading ? (
+            <p className="text-slate-500 text-sm">Loading source...</p>
+          ) : sourceError ? (
+            <p className="text-red-400 text-sm">{sourceError}</p>
+          ) : (
+            <CodeViewer
+              sourceCode={sourceCode}
+              language={sourceLanguage}
+              lineMarkers={lineMarkers}
+              jumpTarget={jumpTarget}
+              onLineClick={handleEditorLineClick}
+            />
+          )}
         </div>
 
         {!hasFindings ? (
@@ -425,7 +479,14 @@ function ReviewResults() {
             </p>
           ) : (
             <div className="flex flex-col gap-3">
-              {filteredFindings.map((finding) => <IssueCard key={finding.id} finding={finding} />)}
+             {filteredFindings.map((finding) => (
+                <IssueCard
+                  key={finding.id}
+                  finding={finding}
+                  onViewCode={handleViewCode}
+                  isFlashed={flashedFindingIds.includes(finding.id)}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -434,7 +495,7 @@ function ReviewResults() {
   )
 }
 
-function IssueCard({ finding }) {
+function IssueCard({ finding, onViewCode, isFlashed }) {
   const category = getCategoryMeta(finding)
   const title = getDisplayTitle(finding)
   const sourceLabel = getSourceLabel(finding)
@@ -450,12 +511,27 @@ function IssueCard({ finding }) {
   }
 
   return (
-    <div className="bg-slate-800/50 border border-slate-800 rounded-lg p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <span className={`w-2 h-2 rounded-full ${severityDotColor} inline-block`} />
-        <span className={`text-xs font-bold ${severityTextColor}`}>{finding.severity?.toUpperCase()}</span>
-        <span className="text-slate-600">•</span>
-        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${category.badgeClass}`}>{category.label}</span>
+    <div
+      id={`finding-${finding.id}`}
+      className={`bg-slate-800/50 border rounded-lg p-4 transition-colors ${
+        isFlashed ? 'border-cyan-500 bg-cyan-500/10' : 'border-slate-800'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${severityDotColor} inline-block`} />
+          <span className={`text-xs font-bold ${severityTextColor}`}>{finding.severity?.toUpperCase()}</span>
+          <span className="text-slate-600">•</span>
+          <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${category.badgeClass}`}>{category.label}</span>
+        </div>
+        {finding.line_number && onViewCode && (
+          <button
+            onClick={() => onViewCode(finding.line_number)}
+            className="text-cyan-400 text-xs hover:underline shrink-0"
+          >
+            View Code
+          </button>
+        )}
       </div>
 
       <h3 className="text-slate-100 font-medium text-sm mb-1">{title}</h3>
@@ -547,6 +623,34 @@ function getContributingTools(finding) {
 
   return [getToolLabel(finding)] 
 }
+const SEVERITY_RANK = { High: 3, Medium: 2, Low: 1 }
+
+function buildLineMarkers(findings) {
+  const byLine = {}
+  for (const finding of findings) {
+    if (!finding.line_number) continue  
+    if (!byLine[finding.line_number]) byLine[finding.line_number] = []
+    byLine[finding.line_number].push(finding)
+  }
+
+  return Object.entries(byLine).map(([lineStr, findingsOnLine]) => {
+    const topSeverity = findingsOnLine.reduce(
+      (top, f) => (SEVERITY_RANK[f.severity] > SEVERITY_RANK[top] ? f.severity : top),
+      'Low'
+    )
+    return {
+      line: Number(lineStr),
+      severity: topSeverity,
+      findingIds: findingsOnLine.map((f) => f.id),
+      items: findingsOnLine.map((f) => ({
+        severity: f.severity,
+        category: getCategoryMeta(f).label,
+        title: getDisplayTitle(f),
+      })),
+    }
+  })
+}
+
 function StatCard({ label, value, valueColor }) {
   return (
     <div className="bg-slate-800/50 border border-slate-800 rounded-lg p-4 text-center">

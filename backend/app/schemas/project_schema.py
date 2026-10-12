@@ -1,3 +1,4 @@
+from typing import Literal 
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 
@@ -11,3 +12,8 @@ class ProjectResponse(BaseModel):
    
 
     model_config = ConfigDict(from_attributes=True)  
+
+class CodeSubmission(BaseModel):
+    
+    code: str
+    language: Literal["python", "c", "java"]
