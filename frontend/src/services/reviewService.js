@@ -13,3 +13,8 @@ export const getReview = async (reviewId) => {
   const response = await api.get(`/review/${reviewId}`)
   return response.data
 }
+
+export const getReviewSource = async (reviewId) => {
+  const response = await api.get(`/review/${reviewId}/source`)
+  return response.data
+}

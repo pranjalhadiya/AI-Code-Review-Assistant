@@ -36,4 +36,10 @@ class ReviewResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    
+class SourceCodeResponse(BaseModel):
+  
+    file_name: str
+    language: str 
+    source_code: str
+
+    model_config = ConfigDict(from_attributes=True)

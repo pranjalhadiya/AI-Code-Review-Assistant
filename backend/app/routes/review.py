@@ -6,7 +6,7 @@ from app.models.user import User
 from app.models.project import Project
 from app.models.review import Review
 from app.models.review_finding import ReviewFinding
-from app.schemas.review_schema import ReviewResponse
+from app.schemas.review_schema import ReviewResponse, SourceCodeResponse 
 from app.services.auth_service import get_current_user
 from app.services.pylint_service import (
     run_pylint,
@@ -281,3 +281,43 @@ def get_review(
         )
 
     return review
+
+@router.get(
+    "/{review_id}/source",
+    response_model=SourceCodeResponse
+)
+def get_review_source(
+    review_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    review = db.query(Review).filter(Review.id == review_id).first()
+
+    if not review:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found.")
+
+    if review.project.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to access this review."
+        )
+
+    language = detect_language(review.project.file_path)
+
+
+    try:
+        with open(review.project.file_path, "r", encoding="utf-8", errors="ignore") as f:
+            source_code = f.read()
+
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="The source file for this review could no longer be found on the server."
+        )
+
+    return SourceCodeResponse(
+        file_name=review.project.project_name,
+        language=language or "python",  
+        source_code=source_code,
+    )
