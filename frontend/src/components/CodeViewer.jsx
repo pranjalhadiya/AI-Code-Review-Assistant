@@ -125,7 +125,7 @@ function CodeViewer({
           fontSize: 13,
           scrollBeyondLastLine: false,
           automaticLayout: true,
-          glyphMargin: readOnly,
+          glyphMargin: lineMarkers.length > 0,
         }}
       />
     </div>

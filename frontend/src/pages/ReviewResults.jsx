@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import Sidebar from '../components/Sidebar'
-import { getReview, getReviewSource } from '../services/reviewService'
+import { getReview, getReviewSource, reanalyzeReview } from '../services/reviewService'
 import CodeViewer from '../components/CodeViewer'  
 import { Bar } from 'react-chartjs-2'
 import {
@@ -30,7 +30,7 @@ const CATEGORY_ORDER = ['security', 'quality', 'performance', 'best_practice', '
 
 const SEVERITY_PENALTY = { High: 8, Medium: 4, Low: 1 }
 
-
+const NO_MARKERS = []
 
 function _legacyCategoryKey(issueText) {
 
@@ -112,7 +112,7 @@ function getScoreStatusLabel(score) {
 }
 
 
-function ReviewResults() {
+function ReviewResultsPage() {
   const { reviewId } = useParams()
   const { user, loading: authLoading } = useAuth()
 
@@ -160,6 +160,23 @@ function ReviewResults() {
     }
     fetchSource()
   }, [reviewId]) 
+
+  const [isEditing, setIsEditing] = useState(false)
+  const [editorSession, setEditorSession] = useState(0) 
+  const editedCodeRef = useRef('')   
+
+  const navigate = useNavigate()
+  const [isDirty, setIsDirty] = useState(false)      
+  const [isSaving, setIsSaving] = useState(false)     
+  const [saveError, setSaveError] = useState('')
+  const [saveElapsed, setSaveElapsed] = useState(0)
+
+  useEffect(() => {
+    if (!isSaving) return
+    setSaveElapsed(0)
+    const timer = setInterval(() => setSaveElapsed((s) => s + 1), 1000)
+    return () => clearInterval(timer)
+  }, [isSaving])
 
   if (authLoading || reviewLoading) {
     return (
@@ -300,12 +317,60 @@ function ReviewResults() {
   }
 
   const handleEditorLineClick = (lineNumber) => {
+    if (isEditing) return 
     const marker = lineMarkers.find((m) => m.line === lineNumber)
     if (!marker) return
     setFlashedFindingIds(marker.findingIds)
     const el = document.getElementById(`finding-${marker.findingIds[0]}`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     setTimeout(() => setFlashedFindingIds([]), 2000)
+  }
+
+  const handleStartEditing = () => {
+    editedCodeRef.current = sourceCode
+    setJumpTarget(null)
+    setFlashedFindingIds([])
+    setSaveError('')
+    setIsDirty(false)
+    setIsEditing(true)
+  }
+
+  const handleCancelEditing = () => {
+    if (isSaving) return
+    editedCodeRef.current = sourceCode
+    setSaveError('')
+    setIsDirty(false)
+    setIsEditing(false)
+    setEditorSession((n) => n + 1)
+  }
+
+  const handleEditorChange = (text) => {
+    editedCodeRef.current = text
+    setIsDirty(text !== sourceCode)
+  }
+
+  const handleSaveAndReanalyze = async () => {
+    if (isSaving || !isDirty) return
+    setSaveError('')
+    setIsSaving(true)
+    try {
+      const newReview = await reanalyzeReview(review.id, editedCodeRef.current)
+      navigate(`/review/${newReview.id}`, { replace: true })
+      
+    } catch (err) {
+      const detail = err.response?.data?.detail
+      if (typeof detail === 'string') {
+        setSaveError(`${detail} Your edits are still in the editor, and the original code and results were kept.`)
+       
+      } else if (err.response) {
+        setSaveError('Re-analysis failed. Your edits are still in the editor, and the original code and results were kept.')
+      
+      } else {
+        setSaveError('Could not reach the server. Your edits are still in the editor. If this keeps happening, reload the page to check the current state.')
+        
+      }
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -367,16 +432,65 @@ function ReviewResults() {
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-8">
-          <h2 className="text-sm font-semibold text-slate-300 mb-4">Source Code</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-slate-300">Source Code</h2>
+
+            {!sourceLoading && !sourceError && (
+              isEditing ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCancelEditing}
+                    disabled={isSaving}
+                    className="px-3 py-1 rounded-md text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveAndReanalyze}
+                    disabled={!isDirty || isSaving}
+                    title={!isDirty && !isSaving ? 'Make a change to re-analyze' : undefined}
+                    className="px-3 py-1 rounded-md text-xs font-semibold bg-cyan-500 text-slate-950 hover:bg-cyan-400 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {isSaving ? `Analyzing... ${saveElapsed}s` : 'Save & Re-analyze'}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleStartEditing}
+                  className="px-3 py-1 rounded-md text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-slate-100 transition-colors"
+                >
+                  Edit Code
+                </button>
+              )
+            )}
+          </div>
+
+          {isEditing && (
+            <p className="text-slate-500 text-xs mb-3">
+              {isSaving
+                ? 'Running static analysis and AI review. This can take up to a minute. Please keep this page open.'
+                : 'Editing. Finding markers are hidden, and the results below still reflect the last analysis.'}
+            </p>
+          )}
+
+          {saveError && (
+            <div className="bg-red-950 border border-red-800 text-red-300 text-sm rounded-lg p-3 mb-3">
+              {saveError}
+            </div>
+          )}
+
           {sourceLoading ? (
             <p className="text-slate-500 text-sm">Loading source...</p>
           ) : sourceError ? (
             <p className="text-red-400 text-sm">{sourceError}</p>
           ) : (
             <CodeViewer
+              key={editorSession}
               sourceCode={sourceCode}
               language={sourceLanguage}
-              lineMarkers={lineMarkers}
+              readOnly={!isEditing || isSaving}
+              onChange={isEditing ? handleEditorChange : undefined}
+              lineMarkers={isEditing ? NO_MARKERS : lineMarkers}
               jumpTarget={jumpTarget}
               onLineClick={handleEditorLineClick}
             />
@@ -483,7 +597,7 @@ function ReviewResults() {
                 <IssueCard
                   key={finding.id}
                   finding={finding}
-                  onViewCode={handleViewCode}
+                  onViewCode={isEditing ? undefined : handleViewCode}
                   isFlashed={flashedFindingIds.includes(finding.id)}
                 />
               ))}
@@ -494,6 +608,7 @@ function ReviewResults() {
     </div>
   )
 }
+
 
 function IssueCard({ finding, onViewCode, isFlashed }) {
   const category = getCategoryMeta(finding)
@@ -675,5 +790,11 @@ function FilterButton({ label, active, onClick }) {
     </button>
   )
 }
+
+function ReviewResults() {
+  const { reviewId } = useParams()
+  return <ReviewResultsPage key={reviewId} />
+}
+
 
 export default ReviewResults
