@@ -18,3 +18,8 @@ export const getReviewSource = async (reviewId) => {
   const response = await api.get(`/review/${reviewId}/source`)
   return response.data
 }
+
+export const reanalyzeReview = async (reviewId, sourceCode) => {
+  const response = await api.post(`/review/${reviewId}/reanalyze`, { source_code: sourceCode })
+  return response.data
+}
