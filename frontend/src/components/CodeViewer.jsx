@@ -94,13 +94,20 @@ function CodeViewer({
     const monacoInstance = monacoRef.current
     if (!editor || !monacoInstance || !jumpTarget) return
 
-    editor.revealLineInCenter(jumpTarget.line)
+    const line = Math.max(
+      1,
+      Math.min(jumpTarget.line, editor.getModel()?.getLineCount() ?? 1)
+    )
+
+    editor.revealLineInCenter(line)
+    editor.setPosition({ lineNumber: line, column: 1 })
+    editor.focus()
 
     if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current)
 
     const flashId = editor.deltaDecorations([], [
       {
-        range: new monacoInstance.Range(jumpTarget.line, 1, jumpTarget.line, 1),
+        range: new monacoInstance.Range(line, 1, line, 1),
         options: { isWholeLine: true, className: 'line-flash' },
       },
     ])
