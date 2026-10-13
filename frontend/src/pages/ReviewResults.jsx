@@ -127,6 +127,7 @@ function ReviewResultsPage() {
   const [jumpTarget, setJumpTarget] = useState(null)      
   const [flashedFindingIds, setFlashedFindingIds] = useState([]) 
 
+  const sourceCodeSectionRef = useRef(null)
 
   const [severityFilter, setSeverityFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -313,7 +314,16 @@ function ReviewResultsPage() {
   )
 
   const handleViewCode = (lineNumber) => {
+    if (!Number.isInteger(lineNumber) || lineNumber < 1) return
+
     setJumpTarget({ line: lineNumber })
+
+    requestAnimationFrame(() => {
+      sourceCodeSectionRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      })
+    })
   }
 
   const handleEditorLineClick = (lineNumber) => {
@@ -431,7 +441,10 @@ function ReviewResultsPage() {
           ) : null}
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-8">
+        <div 
+          ref={sourceCodeSectionRef} 
+          className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-8"
+        >
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-slate-300">Source Code</h2>
 

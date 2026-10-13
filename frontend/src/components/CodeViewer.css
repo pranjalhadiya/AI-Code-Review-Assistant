@@ -1,17 +1,42 @@
 .glyph-marker {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-top: 5px;
-  margin-left: 4px;
+  background: transparent !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.glyph-marker-high { background-color: #f87171; }
-.glyph-marker-medium { background-color: #fbbf24; }
-.glyph-marker-low { background-color: #34d399; }
 
-.line-tint-high { background-color: rgba(248, 113, 113, 0.08); }
-.line-tint-medium { background-color: rgba(251, 191, 36, 0.08); }
-.line-tint-low { background-color: rgba(52, 211, 153, 0.06); }
+.glyph-marker::after {
+  content: '';
+  display: block;
+  width: 7px;
+  height: 7px;
+  min-width: 7px;
+  border-radius: 50%;
+}
+
+.glyph-marker-high::after {
+  background-color: #f87171;
+}
+
+.glyph-marker-medium::after {
+  background-color: #fbbf24;
+}
+
+.glyph-marker-low::after {
+  background-color: #34d399;
+}
+
+.line-tint-high {
+  background-color: rgba(248, 113, 113, 0.08);
+}
+
+.line-tint-medium {
+  background-color: rgba(251, 191, 36, 0.08);
+}
+
+.line-tint-low {
+  background-color: rgba(52, 211, 153, 0.06);
+}
 
 .line-flash {
   background-color: rgba(34, 211, 238, 0.25) !important;
