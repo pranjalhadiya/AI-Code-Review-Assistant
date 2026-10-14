@@ -47,3 +47,15 @@ def overwrite_stored_file(file_path: str, file_bytes: bytes) -> None:
     finally:
         if os.path.exists(temp_path):     
             os.remove(temp_path)
+
+def delete_stored_file(file_path: str) -> None:
+
+    upload_root = os.path.abspath(settings.UPLOAD_DIRECTORY)
+    target = os.path.abspath(file_path)
+    if os.path.commonpath([upload_root, target]) != upload_root:
+        raise ValueError("Refusing to delete outside the upload directory.")
+        
+    try:
+        os.remove(target)
+    except FileNotFoundError:
+        pass 

@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard'
 import CodeSubmission from './pages/CodeSubmission' 
 import ReviewResults from './pages/ReviewResults'
 import ProtectedRoute from './components/ProtectedRoute' 
+import ReviewHistory from './pages/ReviewHistory'
 
 function App() {
   return (
@@ -42,6 +43,15 @@ function App() {
             element={
             <ProtectedRoute>
               <ReviewResults />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/history"
+          element={
+            <ProtectedRoute>
+              <ReviewHistory />
             </ProtectedRoute>
           }
         />

@@ -22,9 +22,9 @@ function Sidebar({ userName }) {
       </div>
 
       <nav className="flex flex-col gap-1 flex-1">
-         <SidebarLink to="/dashboard" label="Dashboard" active={location.pathname === '/dashboard'} />
+        <SidebarLink to="/dashboard" label="Dashboard" active={location.pathname === '/dashboard'} />
         <SidebarLink to="/submit" label="Submit Code" active={location.pathname === '/submit'} />
-        <SidebarLink to="#" label="Review History" disabled />
+        <SidebarLink to="/history" label="Review History" active={location.pathname === '/history'} />
         
       </nav>
 
