@@ -1,5 +1,7 @@
 import os
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Literal 
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func 
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -7,9 +9,9 @@ from app.models.user import User
 from app.models.project import Project
 from app.models.review import Review
 from app.models.review_finding import ReviewFinding
-from app.schemas.review_schema import ReviewResponse, SourceCodeResponse, ReanalyzeRequest
+from app.schemas.review_schema import ReviewResponse, SourceCodeResponse, ReanalyzeRequest, ReviewListItem
 from app.utils.file_validation import validate_upload        
-from app.utils.file_storage import overwrite_stored_file  
+from app.utils.file_storage import overwrite_stored_file, delete_stored_file   
 from app.services.auth_service import get_current_user
 from app.services.pylint_service import (
     run_pylint,
@@ -31,8 +33,8 @@ from app.services.ai_service import (
     truncate_text,
     AI_SUMMARY_MAX_LENGTH,
 )
-from app.services.finding_merge_service import merge_static_and_ai_findings  # NEW
-from app.utils.language_detection import detect_language
+from app.services.finding_merge_service import merge_static_and_ai_findings  
+from app.utils.language_detection import detect_language, EXTENSION_TO_LANGUAGE
 
 
 router = APIRouter(
@@ -40,6 +42,76 @@ router = APIRouter(
     tags=["Review"]
 )
 
+LANGUAGE_FILE_SUFFIX = {language: ext for ext, language in EXTENSION_TO_LANGUAGE.items()}
+
+SORT_ORDERINGS = {
+    "newest": (Review.created_at.desc(), Review.id.desc()),
+    "oldest": (Review.created_at.asc(), Review.id.asc()),
+    "score_desc": (Review.review_score.desc().nulls_last(), Review.created_at.desc(), Review.id.desc()),
+    "score_asc": (Review.review_score.asc().nulls_last(), Review.created_at.desc(), Review.id.desc()),
+    "name": (func.lower(Project.project_name).asc(), Review.created_at.desc(), Review.id.desc()),
+}
+
+
+
+@router.get("/", response_model=list[ReviewListItem])
+def list_reviews(
+    search: str | None = Query(None, max_length=100),
+    language: Literal["python", "c", "java"] | None = None,
+    score: Literal["good", "needs_improvement", "poor"] | None = None,
+    sort: Literal["newest", "oldest", "score_desc", "score_asc", "name"] = "newest",
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """The logged-in user's reviews, newest first by default, with optional search, filters, and sort."""
+    query = (
+        db.query(Review, Project)
+        .join(Project, Review.project_id == Project.id)
+        .filter(Project.user_id == current_user.id)   # Only this user's reviews, enforced in SQL.
+    )
+
+    if search and search.strip():
+        query = query.filter(Project.project_name.icontains(search.strip(), autoescape=True))
+
+    if language:
+        query = query.filter(func.lower(Project.file_path).endswith(LANGUAGE_FILE_SUFFIX[language]))
+
+    if score == "good":
+        query = query.filter(Review.review_score >= 80)
+    elif score == "needs_improvement":
+        query = query.filter(Review.review_score >= 50, Review.review_score < 80)
+    elif score == "poor":
+        query = query.filter(Review.review_score < 50)
+
+
+    rows = query.order_by(*SORT_ORDERINGS[sort]).all()
+
+    review_ids = [review.id for review, _ in rows]
+    counts_by_review: dict[int, dict[str, int]] = {}
+    if review_ids:
+        grouped = (
+            db.query(ReviewFinding.review_id, ReviewFinding.severity, func.count(ReviewFinding.id))
+            .filter(ReviewFinding.review_id.in_(review_ids))
+            .group_by(ReviewFinding.review_id, ReviewFinding.severity)
+            .all()
+        )
+        for review_id, severity, count in grouped:
+            counts_by_review.setdefault(review_id, {})[severity] = count
+
+    return [
+        ReviewListItem(
+            id=review.id,
+            project_id=project.id,
+            project_name=project.project_name,
+            language=detect_language(project.file_path),
+            review_score=review.review_score,
+            high_count=counts_by_review.get(review.id, {}).get("High", 0),
+            medium_count=counts_by_review.get(review.id, {}).get("Medium", 0),
+            low_count=counts_by_review.get(review.id, {}).get("Low", 0),
+            created_at=review.created_at,
+        )
+        for review, project in rows
+    ]
 
 @router.post(
     "/{project_id}/analyze",
@@ -424,3 +496,50 @@ def reanalyze_review(
         raise  
 
     return new_review
+
+@router.delete("/{review_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_review(
+    review_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    review = db.query(Review).filter(Review.id == review_id).first()
+
+    if not review:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found.")
+
+    if review.project.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to access this review."
+        )
+
+    project_id = review.project_id
+    file_path = review.project.file_path
+
+    db.delete(review)   
+    db.commit()
+
+    file_to_remove = None
+    try:
+        remaining = db.query(Review.id).filter(Review.project_id == project_id).count()
+        if remaining == 0:
+            project = db.query(Project).filter(Project.id == project_id).first()
+            if project is not None:
+                db.delete(project)
+                db.commit()
+                path_still_used = db.query(Project.id).filter(Project.file_path == file_path).count() > 0
+                if not path_still_used:
+                    file_to_remove = file_path
+    except Exception as e:
+        db.rollback()
+        print(f"Review {review_id} was deleted, but project cleanup failed: {e}")
+
+    if file_to_remove:
+        try:
+            delete_stored_file(file_to_remove)
+        except Exception as e:
+            print(f"Review {review_id} was deleted, but the stored file could not be removed: {e}")
+
+    return None

@@ -46,3 +46,15 @@ class SourceCodeResponse(BaseModel):
 
 class ReanalyzeRequest(BaseModel):
     source_code: str
+
+class ReviewListItem(BaseModel):
+
+    id: int
+    project_id: int
+    project_name: str
+    language: str | None      
+    review_score: float | None
+    high_count: int
+    medium_count: int
+    low_count: int
+    created_at: datetime
